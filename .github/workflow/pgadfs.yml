@@ -1,0 +1,41 @@
+name: Run PGA DFS R Script
+on:
+  workflow_dispatch:  # Enables manual trigger from GitHub UI
+  #schedule:
+    # Every day: 11:00 AM – 1:30 PM ET (every 15 minutes)
+    #- cron: '0,15,30,45 16-18 * * *'  # 16:00–18:45 UTC
+    # Every day: 1:30 PM – 5:30 PM ET (every 30 minutes)
+    #- cron: '0,30 19-22 * * *'        # 19:00–22:30 UTC
+    # Every day: 5:30 PM – 6:45 PM ET (every 15 minutes)
+    #- cron: '0,15,30,45 23 * * *'     # 23:00–23:45 UTC
+    # Every day: 7:00 PM – 8:45 PM ET (every 15 minutes)
+    #- cron: '0,15,30,45 0-1 * * *'    # 00:00–01:45 UTC (next day)
+    # Every day: 9:00 PM – 9:45 PM ET (every 15 minutes)
+    #- cron: '0,15,30,45 2 * * *'      # 02:00–02:45 UTC (next day)
+jobs:
+  run_script:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Set up R
+      uses: r-lib/actions/setup-r@v2
+      with:
+        use-public-rspm: true
+    - name: Cache R packages
+      uses: actions/cache@v3
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-packages-v1
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev
+    - name: Install R packages
+      run: |
+        Rscript -e "install.packages(c('googlesheets4', 'googledrive', 'dplyr', 'lubridate', 'stringr', 'rjson', 'httr', 'base64enc', 'magrittr', 'plyr', 'RCurl', 'XML'), repos = 'https://cloud.r-project.org')"
+    - name: Run R script
+      env:
+        GCP_SHEETS_KEY_B64: ${{ secrets.GCP_SHEETS_KEY_B64 }}
+      run: |
+        Rscript "PGA DFS.R"
