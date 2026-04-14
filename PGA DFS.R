@@ -15,7 +15,6 @@ json_key <- rawToChar(base64decode(Sys.getenv("GCP_SHEETS_KEY_B64")))
 temp_json_file <- tempfile(fileext = ".json")
 writeLines(json_key, temp_json_file)
 gs4_auth(path = temp_json_file)
-#gs4_auth(cache = ".secrets", email = "joebond008@gmail.com")
 
 # Google Sheets URL
 gs_url <- "https://docs.google.com/spreadsheets/d/1dWsEg3HLa9KY1YES31P1Mam0vLFK9zrR91rOsDSKsA8"
@@ -100,6 +99,20 @@ get_processed_slate <- function(api_url, label) {
   return(df)
 }
 
+# Helper to clear a sheet below the header and write a placeholder message
+write_placeholder <- function(sheet_name, site_label) {
+  # Clear all data below header by writing a single blank-then-message row
+  range_clear(ss = gs_url, sheet = sheet_name, range = "A2:Z1000")
+  range_write(
+    ss       = gs_url,
+    data     = data.frame(Message = paste0(site_label, " Projections for this week's tournament will be coming soon")),
+    sheet    = sheet_name,
+    range    = "A2",
+    col_names = FALSE
+  )
+  message(site_label, " — placeholder message written to ", sheet_name, ".")
+}
+
 # --- FanDuel ---
 fd <- get_processed_slate("https://bluecollardfs.com/api/golf_fanduel", "FanDuel")
 
@@ -107,7 +120,7 @@ if (!is.null(fd)) {
   sheet_write(fd[, c("Player", "Proj", "Salary", "Value")], sheet = "FD PGA DFS", ss = gs_url)
   message("FanDuel data written to Google Sheets.")
 } else {
-  message("FanDuel skipped — nothing to write.")
+  write_placeholder("FD PGA DFS", "FanDuel")
 }
 
 # --- DraftKings ---
@@ -117,7 +130,7 @@ if (!is.null(dk)) {
   sheet_write(dk[, c("Player", "Proj", "Salary", "Value")], sheet = "DK PGA DFS", ss = gs_url)
   message("DraftKings data written to Google Sheets.")
 } else {
-  message("DraftKings skipped — nothing to write.")
+  write_placeholder("DK PGA DFS", "DraftKings")
 }
 
 # --- Timestamp — always runs ---
