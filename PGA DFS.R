@@ -15,6 +15,7 @@ json_key <- rawToChar(base64decode(Sys.getenv("GCP_SHEETS_KEY_B64")))
 temp_json_file <- tempfile(fileext = ".json")
 writeLines(json_key, temp_json_file)
 gs4_auth(path = temp_json_file)
+#gs4_auth(cache = ".secrets", email = "joebond008@gmail.com")
 
 # Google Sheets URL
 gs_url <- "https://docs.google.com/spreadsheets/d/1dWsEg3HLa9KY1YES31P1Mam0vLFK9zrR91rOsDSKsA8"
@@ -46,22 +47,36 @@ get_processed_slate <- function(api_url, label) {
     return(NULL)
   }
   
-  # Find classic slate index, fall back to largest slate by player count
+  # Find classic slate index — exclude LIV, prefer most players
   text_cols <- names(slates)[sapply(slates, is.character)]
-  slate_index <- NA
+  
+  # Get all classic slate indices
+  classic_indices <- c()
   for (col in text_cols) {
-    idx <- which(grepl("classic", slates[[col]], ignore.case = TRUE))[1]
-    if (!is.na(idx)) { slate_index <- idx; break }
+    idx <- which(grepl("classic", slates[[col]], ignore.case = TRUE))
+    if (length(idx) > 0) { classic_indices <- idx; break }
   }
-  if (is.na(slate_index)) {
-    player_counts <- sapply(seq_along(data$slates$info), function(i) {
-      info <- data$slates$info[[i]]
-      if (is.data.frame(info)) nrow(info) else 0
+  
+  # Remove any LIV slates from candidates
+  if (length(classic_indices) > 0) {
+    liv_mask <- sapply(classic_indices, function(i) {
+      any(sapply(text_cols, function(col) grepl("LIV", slates[[col]][i], ignore.case = TRUE)))
     })
-    slate_index <- which.max(player_counts)
-    message(label, " — no Classic slate found. Using slate index ", slate_index,
-            " with ", player_counts[slate_index], " players.")
+    classic_indices <- classic_indices[!liv_mask]
   }
+  
+  # Among remaining candidates, pick the one with the most players
+  if (length(classic_indices) == 0) {
+    message(label, " — no valid Classic slate found (only LIV or none). Skipping.")
+    return(NULL)
+  }
+  
+  player_counts <- sapply(classic_indices, function(i) {
+    info <- data$slates$info[[i]]
+    if (is.data.frame(info)) nrow(info) else 0
+  })
+  slate_index <- classic_indices[which.max(player_counts)]
+  message(label, " — using slate index ", slate_index, " with ", max(player_counts), " players.")
   
   # Extract and rename player data
   df <- tryCatch(
