@@ -15,7 +15,6 @@ json_key <- rawToChar(base64decode(Sys.getenv("GCP_SHEETS_KEY_B64")))
 temp_json_file <- tempfile(fileext = ".json")
 writeLines(json_key, temp_json_file)
 gs4_auth(path = temp_json_file)
-#gs4_auth(cache = ".secrets", email = "joebond008@gmail.com")
 
 # Google Sheets URL
 gs_url <- "https://docs.google.com/spreadsheets/d/1dWsEg3HLa9KY1YES31P1Mam0vLFK9zrR91rOsDSKsA8"
