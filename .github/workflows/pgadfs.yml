@@ -41,5 +41,6 @@ jobs:
     - name: Run R script
       env:
         GCP_SHEETS_KEY_B64: ${{ secrets.GCP_SHEETS_KEY_B64 }}
+        BCDFS_API_KEY: ${{ secrets.BCDFS_API_KEY }}
       run: |
         Rscript "PGA DFS.R"
