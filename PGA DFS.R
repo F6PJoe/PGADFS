@@ -19,25 +19,24 @@ gs4_auth(path = temp_json_file)
 # Google Sheets URL
 gs_url <- "https://docs.google.com/spreadsheets/d/1dWsEg3HLa9KY1YES31P1Mam0vLFK9zrR91rOsDSKsA8"
 
+# BlueCollar DFS API key (stored as a GitHub Actions secret)
+bcdfs_api_key <- paste0("ApiKey ", Sys.getenv("BCDFS_API_KEY"))
+
 # Helper function to fetch and process slate data
-# Returns NULL if no slates are available or processing fails
 get_processed_slate <- function(api_url, label) {
   
-  # Fetch API response
   response <- tryCatch(
-    GET(api_url, add_headers(Authorization = "FantasySixPack", `Content-Type` = "application/json")),
+    GET(api_url, add_headers(Authorization = bcdfs_api_key, `Content-Type` = "application/json")),
     error = function(e) { message(label, " API request failed: ", e$message); return(NULL) }
   )
   if (is.null(response)) return(NULL)
   
-  # Parse response
   data <- tryCatch(
     content(response, "parsed", simplifyVector = TRUE),
     error = function(e) { message(label, " failed to parse response: ", e$message); return(NULL) }
   )
   if (is.null(data)) return(NULL)
   
-  # Check if slates exist
   slates <- data$slates
   if (is.null(slates) || length(slates) == 0 ||
       (is.data.frame(slates) && nrow(slates) == 0) ||
@@ -46,17 +45,14 @@ get_processed_slate <- function(api_url, label) {
     return(NULL)
   }
   
-  # Find classic slate index — exclude LIV, prefer most players
   text_cols <- names(slates)[sapply(slates, is.character)]
   
-  # Get all classic slate indices
   classic_indices <- c()
   for (col in text_cols) {
     idx <- which(grepl("classic", slates[[col]], ignore.case = TRUE))
     if (length(idx) > 0) { classic_indices <- idx; break }
   }
   
-  # Remove any LIV slates from candidates
   if (length(classic_indices) > 0) {
     liv_mask <- sapply(classic_indices, function(i) {
       any(sapply(text_cols, function(col) grepl("LIV", slates[[col]][i], ignore.case = TRUE)))
@@ -64,7 +60,6 @@ get_processed_slate <- function(api_url, label) {
     classic_indices <- classic_indices[!liv_mask]
   }
   
-  # Among remaining candidates, pick the one with the most players
   if (length(classic_indices) == 0) {
     message(label, " — no valid Classic slate found (only LIV or none). Skipping.")
     return(NULL)
@@ -77,7 +72,6 @@ get_processed_slate <- function(api_url, label) {
   slate_index <- classic_indices[which.max(player_counts)]
   message(label, " — using slate index ", slate_index, " with ", max(player_counts), " players.")
   
-  # Extract and rename player data
   df <- tryCatch(
     data$slates$info[[slate_index]],
     error = function(e) { message(label, " — failed to extract slate info: ", e$message); return(NULL) }
@@ -113,15 +107,14 @@ get_processed_slate <- function(api_url, label) {
   return(df)
 }
 
-# Helper to clear a sheet below the header and write a placeholder message
+# Helper to clear a sheet and write a placeholder message
 write_placeholder <- function(sheet_name, site_label) {
-  # Clear all data below header by writing a single blank-then-message row
   range_clear(ss = gs_url, sheet = sheet_name, range = "A2:Z1000")
   range_write(
-    ss       = gs_url,
-    data     = data.frame(Message = paste0(site_label, " Projections for this week's tournament will be coming soon")),
-    sheet    = sheet_name,
-    range    = "A2",
+    ss        = gs_url,
+    data      = data.frame(Message = paste0(site_label, " Projections for this week's tournament will be coming soon")),
+    sheet     = sheet_name,
+    range     = "A2",
     col_names = FALSE
   )
   message(site_label, " — placeholder message written to ", sheet_name, ".")
@@ -147,7 +140,7 @@ if (!is.null(dk)) {
   write_placeholder("DK PGA DFS", "DraftKings")
 }
 
-# --- Timestamp — always runs ---
+# --- Timestamp ---
 update_time    <- with_tz(Sys.time(), "America/New_York")
 formatted_date <- format(update_time, "%B %d, %Y")
 formatted_time <- format(update_time, "%I:%M %p ET")
@@ -155,5 +148,4 @@ range_write(ss = gs_url, data = data.frame(Date = formatted_date), sheet = "PGA 
 range_write(ss = gs_url, data = data.frame(Time = formatted_time), sheet = "PGA Update Time", range = "B2", col_names = FALSE)
 message("Timestamp updated: ", formatted_date, " ", formatted_time)
 
-# Exit cleanly for GitHub Actions
 quit(status = 0)
